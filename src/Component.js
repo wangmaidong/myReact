@@ -1,4 +1,15 @@
 import { findDOM, compareTwoVdom } from './react-dom/client.js'
+export let updateQueue = {
+  isBatchingUpdate: false,
+  updaters: new Set(),
+  batchUpdate() {
+    updateQueue.isBatchingUpdate = false
+    for(const updater of updateQueue.updaters) {
+      updater.updateComponent()
+    }
+    updateQueue.updaters.clear()
+  }
+}
 class Updater {
   constructor(classInstance) {
     this.classInstance = classInstance
@@ -19,7 +30,11 @@ class Updater {
     this.emitUpdate()
   }
   emitUpdate() {
-    this.updateComponent()
+    if(updateQueue.isBatchingUpdate) {
+      updateQueue.updaters.add(this)
+    } else {
+      this.updateComponent()
+    }
   }
   updateComponent() {
     let { classInstance, pendingStates } = this
