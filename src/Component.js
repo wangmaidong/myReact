@@ -29,7 +29,9 @@ class Updater {
     }
     this.emitUpdate()
   }
-  emitUpdate() {
+  emitUpdate(nextProps) {
+    
+    this.nextProps = nextProps
     if(updateQueue.isBatchingUpdate) {
       updateQueue.updaters.add(this)
     } else {
@@ -37,15 +39,15 @@ class Updater {
     }
   }
   updateComponent() {
-    let { classInstance, pendingStates } = this
-    if(pendingStates.length > 0) {
-      shouldUpdate(classInstance, this.getState())
+    let { classInstance, pendingStates, nextProps } = this
+    if(nextProps || pendingStates.length > 0) {
+      shouldUpdate(classInstance, nextProps, this.getState())
     }
   }
   getState() {
     // eslint-disable-next-line
     let {classInstance, pendingStates } = this
-    let { state } = this
+    let { state } = classInstance
     pendingStates.forEach((nextState) => {
       if(typeof nextState === 'function') {
         nextState = nextState(state)
@@ -57,9 +59,21 @@ class Updater {
   }
   
 }
-function shouldUpdate (classInstance, nextState) {
+function shouldUpdate (classInstance,nextProps,  nextState) {
+  let willUpdate = true
+  if(classInstance.shouldComponentUpdate && (!classInstance.shouldComponentUpdate(nextProps, nextState))) {
+    willUpdate = false
+  }
+  if(willUpdate && classInstance.UNSAFE_componentWillUpdate) {
+    classInstance.UNSAFE_componentWillUpdate()
+  }
   classInstance.state = nextState
-  classInstance.forceUpdate()
+  if(nextProps) {
+    classInstance.props = nextProps
+  }
+  if(willUpdate) {
+    classInstance.forceUpdate()
+  }
 }
 export class Component {
   static isReactComponent = true
@@ -72,12 +86,15 @@ export class Component {
     this.updater.addState(partialState, callback)
   }
   forceUpdate() {
+    
     let oldRenderVdom = this.oldRenderVdom
     let oldDom = findDOM(oldRenderVdom)
     let newRenderVdom = this.render()
     compareTwoVdom(oldDom.parentNode, oldRenderVdom, newRenderVdom)
     this.oldRenderVdom = newRenderVdom
     this.updater.flushCallbacks()
-
+    if(this.componentDidUpdate) {
+      this.componentDidUpdate(this.props, this.state)
+    }
   }
 }
